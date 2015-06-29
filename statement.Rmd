@@ -1,0 +1,64 @@
+---
+title: "A Model Averaging Amendment to PET-PEESE"
+author: "Joe Hilgard"
+date: "June 28, 2015"
+output: html_document
+---
+
+PET-PEESE is a two-step conditional meta-regression estimator for the detection of, and adjustment for, small-study effects in meta-analysis. Publication bias often makes it such that studies are censored or published on the basis of their p-values. In this case, only the small studies that dramatically overestimate the true effect will be published, while the larger studies provide an estimation of the effect.
+
+The two steps are PET, which fits a *linear* relationship between effect size and standard error, and PEESE, which fits a *quadratic* relationship between the two. PET is very good at estimating when the true effect size is near zero, but underestimates the size of true effects. PEESE is very good at estimating when the true effect size is nonzero, but it overestimates the effect size when it's actually zero. 
+
+To balance between the two, PET-PEESE's authors recommend the two-step PET-PEESE procedure: 
+
+1. Fit PET and inspect the statistical significance of its estimate.
+
+2. If its estimate is significantly different from zero, conclude some true effect and use the PEESE estimate.
+
+![](http://static1.squarespace.com/static/51e3f76ee4b07f69602a6fcc/t/558d835ce4b0835c14e42cea/1435337564965.png)
+
+The problem, as [Will Gervais points out](http://willgervais.com/blog/2015/6/25/putting-pet-peese-to-the-test-1), is that PET is *terrible* at detecting true effects. You can see it in this bimodal distribution Will gets from his simulation. The hump on the left with the negative bias is PET. The hump on the right with the positive bias is PEESE. In this case, the null is false, so we are all upset that PET-PEESE is failing to reject the null in so many cases, accepting the badly biased PET estimate. Wouldn't it be nice if we could split the difference between the downward bias of PET and the upward bias of PEESE? But the routine says only to use PET *or* PEESE, depending on whether you infer the alternative is true or not.
+
+Thus, PET and PEESE are individually good at estimating effect sizes, conditional on unknown truths, but taken together they are *quite poor* at inferring that unknown truth. The whole decision to use PET vs PEESE hinges on one silly *p*-value --- and *p*-values are awful for inference.
+
+There are two problems with *p*-value in this case. First, it can't actually be used to conclude the truth of the null. Just because PET returns $p = .61$ doesn't mean the null hypothesis is necessarily true. Second, it has this awful cutoff value of $p = .05$. So at $p = .049$ we use PEESE and at $p = .051$ we use PET, and we never think about addressing the ambiguity between the two by smoothing out the difference.
+
+But that is exactly what I am proposing: smoothing out the difference between PET and PEESE. If there's definitely no true effect, we'll absolutely use the PET estimate, and if there's definitely some true effect, we'll absolutely use the PEESE estimate. But if the data aren't very strong, or maybe the results are ambiguous, then we could split the difference between the two to get a less variable, more efficient estimator.
+
+## Hilgard's Model-Averaged PET-PEESE Procedure
+I suggest the following steps:
+
+1. Assign prior beliefs to $H_0$ and $H_1$. In my current domain, violent video games research, I could see it going either way --- maybe there's an effect, maybe there isn't. So I'll go with 1-to-1 odds. If we were talking about ESP, I'd offer 10-billion-to-1 odds favoring the null. These prior odds are subjective. Take a Bayesian out for lunch until this subjectivity no longer bothers you, because that's the universe, baby.
+
+2. Fit both the PET and PEESE meta-regression models.
+
+3. Determine how much more likely, proportionately speaking, the data reflect a true effect than a null effect. This is, naturally, the tricky part. A simple approach might be to compare AICs of the PET and PEESE model to get an evidence ratio. My ideal approach will be more work --- geting a Bayes factor for just how diagnostic the PET result really is.
+
+4. Apply that proportion to update prior beliefs. So if one has 1:1 odds before seeing the data, and the test suggests the data favor an effect over the null by 2:1, then our posterior belief is 2:1 in favor of alternative relative to the null. 
+
+5. Apply those posterior beliefs as weights in averaging the PET and PEESE estimates together. So if PET says $\delta = .05$ and PEESE says $\delta = .58$ and we believe an effect is twice as probable as no effect, we get 
+```{r}
+.05*(1/3) + .58*(2/3)
+```
+
+If, instead, we had those same estimates, but the data couldn't tell us whether to favor PET or favor PEESE, we'd stick with our 1:1 odds, splitting the difference.
+```{r}
+.05*(1/2) + .58*(1/2)
+```
+
+Finally, if we were very confident of our PET results, having heaps of studies that, in aggregate, seemed to find nothing, we might have as much as 10:1 odds in favor of the null, so we'd lean on PET more.
+```{r}
+.05*(10/11) + .58*(1/11)
+```
+
+By adopting this approach, we allow researchers to (1) apply judicious previous beliefs about the *a priori* plausibility of hypotheses, (2) recognize that the data are sometimes ambiguous as to which estimate should be used, and (3) combine both of these estimates into a more efficient, less variable weighted averaged estimate.
+
+Things to do:
+
+1. Determine probability density function of PET when $H_0$ is true.
+
+2. Determine probability density function of PET when $H_1$ is true (for some reasonable $H_1$ such as $H_1: \delta \sim {Cauchy^+(0.5)}$)
+
+3. Determine efficacy of model-averaged PET-PEESE relative to classic $p$-value PET-PEESE in estimating a mixture of true and null effects.
+
+Maybe we'll find that PET is not very good at distinguishing null from alternative and so the PET-PEESE actually can't do much to change our believes in true vs. null effects. Maybe we'll find PEESE is better at distinguishing the two, or some combination. Lots to try out for the above Step 3.
